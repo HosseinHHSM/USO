@@ -1,6 +1,6 @@
 import pandas as pd
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, filters, CallbackContext
 
 # --- Configuration ---
 TOKEN = "7825218464:AAEmaLKgP8hD5wzK_DUA0h64rd3Y-HnVlhY"  # Replace with your BotFather token
@@ -64,8 +64,8 @@ def main():
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, verify))  # First, check the verification code
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_site_id))  # Then process Site ID
+    dp.add_handler(MessageHandler(filters.text & ~filters.command, verify))  # First, check the verification code
+    dp.add_handler(MessageHandler(filters.text & ~filters.command, handle_site_id))  # Then process Site ID
 
     updater.start_polling()
     updater.idle()
