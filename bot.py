@@ -1,35 +1,34 @@
 import os
 import pandas as pd
 from telegram import Update
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler, filters, CallbackContext
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
-# --- Configuration ---
-TOKEN = os.getenv("BOT_TOKEN")  # از متغیر محیطی بخوانید
+# --- تنظیمات اولیه ---
+TOKEN = os.getenv("BOT_TOKEN")  # توکن از متغیر محیطی خوانده می‌شود
 EXCEL_FILE = "RF PLAN.xlsx"  # نام فایل اکسل
-AUTHORIZED_USERS = set()  # لیست کاربران تأیید شده
+AUTHORIZED_USERS = set()  # مجموعه‌ای از کاربران تأیید شده
 VERIFICATION_CODES = {
     "766060", "296752", "783213", "047129", "188709", "904796", "086363",
     "144584", "866372", "394644", "808387", "343647", "917012", "920483",
     "292397", "604952", "714342", "390238", "406511", "714780"
-}  # کدهای تأیید
+}  # لیست کدهای تأیید
 
-# --- خواندن اطلاعات از اکسل ---
+# --- تابع خواندن اطلاعات از اکسل ---
 def get_site_info(site_id):
     try:
         df = pd.read_excel(EXCEL_FILE, engine="openpyxl")
-        row = df[df["Site ID"].astype(str) == str(site_id)]  # تبدیل مقدار به رشته برای اطمینان
+        row = df[df["Site ID"].astype(str) == str(site_id)]  # بررسی Site ID به عنوان رشته
         if row.empty:
             return "❌ سایت یافت نشد."
+        
         info = f"📡 **Site ID:** {site_id}\n"
         for col in df.columns:
             info += f"**{col}:** {row.iloc[0][col]}\n"
         return info
     except Exception as e:
-        return f"⚠️ خطا در خواندن فایل: {str(e)}"
+        return f"⚠️ خطا در خواندن فایل اکسل: {str(e)}"
 
-# --- پیام خوش‌آمدگویی ---
+# --- پیام خوش‌آمدگویی و شروع ---
 async def start(update: Update, context: CallbackContext):
     user_id = update.message.chat_id
     if user_id in AUTHORIZED_USERS:
@@ -37,27 +36,22 @@ async def start(update: Update, context: CallbackContext):
     else:
         await update.message.reply_text("👋 خوش آمدید! لطفاً کد تأیید خود را وارد کنید.")
 
-# --- تأیید هویت ---
-async def verify(update: Update, context: CallbackContext):
+# --- هندلر تأیید هویت و پردازش Site ID در یک تابع ---
+async def handle_user_input(update: Update, context: CallbackContext):
     user_id = update.message.chat_id
-    code = update.message.text.strip()
-    if user_id in AUTHORIZED_USERS:
-        await update.message.reply_text("✅ شما قبلاً تأیید شده‌اید! لطفاً Site ID را وارد کنید.")
-        return
-    if code in VERIFICATION_CODES:
-        AUTHORIZED_USERS.add(user_id)  # اضافه به لیست کاربران تأیید شده
-        await update.message.reply_text("✅ تأیید موفقیت‌آمیز بود! لطفاً Site ID را وارد کنید.")
-    else:
-        await update.message.reply_text("❌ کد نادرست است. لطفاً دوباره امتحان کنید.")
+    user_input = update.message.text.strip()
 
-# --- پردازش Site ID ---
-async def handle_site_id(update: Update, context: CallbackContext):
-    user_id = update.message.chat_id
+    # اگر کاربر تأیید نشده است، پیام را به عنوان کد تأیید بررسی کن
     if user_id not in AUTHORIZED_USERS:
-        await update.message.reply_text("❌ شما ابتدا باید تأیید شوید. لطفاً کد تأیید خود را وارد کنید.")
+        if user_input in VERIFICATION_CODES:
+            AUTHORIZED_USERS.add(user_id)
+            await update.message.reply_text("✅ تأیید موفقیت‌آمیز بود! لطفاً Site ID را وارد کنید.")
+        else:
+            await update.message.reply_text("❌ کد نادرست است. لطفاً دوباره امتحان کنید.")
         return
-    site_id = update.message.text.strip()
-    response = get_site_info(site_id)
+
+    # اگر کاربر تأیید شده است، پیام را به عنوان Site ID پردازش کن
+    response = get_site_info(user_input)
     await update.message.reply_text(response, parse_mode="Markdown")
 
 # --- راه‌اندازی بات ---
@@ -65,8 +59,7 @@ def main():
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, verify))  # تأیید کاربر
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_site_id))  # پردازش Site ID
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_input))  # مدیریت همه ورودی‌های متنی
 
     print("🤖 Bot is running...")
     app.run_polling()
