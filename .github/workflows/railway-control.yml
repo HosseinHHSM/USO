@@ -1,0 +1,32 @@
+name: Manage Railway Deployment
+
+on:
+  schedule:
+    - cron: '0 20 * * *'  # توقف در 12 شب به وقت ایران (20:00 UTC)
+    - cron: '0 4 * * *'   # راه‌اندازی مجدد در 8 صبح به وقت ایران (04:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  stop-service:
+    runs-on: ubuntu-latest
+    if: "github.event.schedule == '0 20 * * *'"
+    steps:
+      - name: Stop Railway Service
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer 0347f9c4-59c6-4031-b508-07e0f10bb16f" \
+            -H "Content-Type: application/json" \
+            "https://backboard.railway.app/graphql" \
+            -d '{"query":"mutation { serviceStop(id: \"a72d635d-42b9-488b-b716-c14470e03e07\") { id } }"}'
+
+  start-service:
+    runs-on: ubuntu-latest
+    if: "github.event.schedule == '0 4 * * *'"
+    steps:
+      - name: Start Railway Service
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer 0347f9c4-59c6-4031-b508-07e0f10bb16f" \
+            -H "Content-Type: application/json" \
+            "https://backboard.railway.app/graphql" \
+            -d '{"query":"mutation { serviceStart(id: \"a72d635d-42b9-488b-b716-c14470e03e07\") { id } }"}'
