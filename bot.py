@@ -1,17 +1,36 @@
 import os
 import pandas as pd
+import json
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
 # --- تنظیمات اولیه ---
 TOKEN = os.getenv("BOT_TOKEN")  # توکن از متغیر محیطی خوانده می‌شود
 EXCEL_FILE = "RF PLAN.xlsx"  # نام فایل اکسل
-AUTHORIZED_USERS = set()  # مجموعه‌ای از کاربران تأیید شده
+AUTHORIZED_USERS_FILE = 'authorized_users.json'  # فایل JSON برای ذخیره کاربران تأیید شده
+
+# تابع بارگذاری کاربران تأیید شده از فایل JSON
+def load_authorized_users():
+    try:
+        with open(AUTHORIZED_USERS_FILE, 'r') as f:
+            return set(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+# تابع ذخیره کاربران تأیید شده به فایل JSON
+def save_authorized_users():
+    with open(AUTHORIZED_USERS_FILE, 'w') as f:
+        json.dump(list(AUTHORIZED_USERS), f)
+
+# بارگذاری کاربران تأیید شده هنگام شروع ربات
+AUTHORIZED_USERS = load_authorized_users()
+
+# لیست کدهای تأیید
 VERIFICATION_CODES = {
     "766060", "296752", "783213", "047129", "188709", "904796", "086363",
     "144584", "866372", "394644", "808387", "343647", "917012", "920483",
     "292397", "604952", "714342", "390238", "406511", "714780"
-}  # لیست کدهای تأیید
+}
 
 # --- تابع خواندن اطلاعات از اکسل ---
 def get_site_info(site_id):
@@ -19,7 +38,7 @@ def get_site_info(site_id):
         df = pd.read_excel(EXCEL_FILE, engine="openpyxl")
         row = df[df["Site ID"].astype(str) == str(site_id)]  # بررسی Site ID به عنوان رشته
         if row.empty:
-            return "❌ سایت یافت نشد."
+            return "❌ سایت مورد نظر یافت نشد، لطفا در نظر داشته باشید که شما به نسخه آفلاین ترکر دسترسی دارید و احتمال دارد سایت شما بعد از تاریخ به روز رسانی ما آپدیت شده است."
         
         info = f"📡 **Site ID:** {site_id}\n"
         for col in df.columns:
@@ -34,7 +53,7 @@ async def start(update: Update, context: CallbackContext):
     if user_id in AUTHORIZED_USERS:
         await update.message.reply_text("✅ شما قبلاً تأیید شده‌اید! لطفاً Site ID را وارد کنید.")
     else:
-        await update.message.reply_text("👋 خوش آمدید! لطفاً کد تأیید خود را وارد کنید.")
+        await update.message.reply_text("👋 سلام دوست عزیز،خوش آمدید! لطفاً کد تأیید خود را وارد کنید.")
 
 # --- هندلر تأیید هویت و پردازش Site ID در یک تابع ---
 async def handle_user_input(update: Update, context: CallbackContext):
@@ -45,9 +64,10 @@ async def handle_user_input(update: Update, context: CallbackContext):
     if user_id not in AUTHORIZED_USERS:
         if user_input in VERIFICATION_CODES:
             AUTHORIZED_USERS.add(user_id)
-            await update.message.reply_text("✅ تأیید موفقیت‌آمیز بود! لطفاً Site ID را وارد کنید.")
+            save_authorized_users()  # ذخیره کردن اطلاعات جدید
+            await update.message.reply_text("✅ شما مجاز هستید! لطفاً Site ID را وارد کنید.")
         else:
-            await update.message.reply_text("❌ کد نادرست است. لطفاً دوباره امتحان کنید.")
+            await update.message.reply_text("❌ کد ورود نادرست است. لطفاً دوباره امتحان کنید.")
         return
 
     # اگر کاربر تأیید شده است، پیام را به عنوان Site ID پردازش کن
