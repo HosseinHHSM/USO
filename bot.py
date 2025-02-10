@@ -60,9 +60,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if user_id not in AUTHORIZED_USERS:
         await update.message.reply_text("👋 **سلام!**\nمن **دستیار هوشمند تیم USO Radio Planning** هستم. برای شروع لطفاً کد تأیید خود را وارد کنید.")
     else:
-        keyboard = [
-            ["Smart Tracker", "Master Tracker", "Target Village"]
-        ]
+        keyboard = [["Smart Tracker", "Master Tracker", "Target Village"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
         await update.message.reply_text("✅ شما تأیید شده‌اید!\nلطفاً یک گزینه را انتخاب کنید:", reply_markup=reply_markup)
 
@@ -75,14 +73,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         context.user_data['tracker_type'] = text.lower().replace(" ", "_")  # ذخیره نوع ترکر در context
         await update.message.reply_text("🔹 لطفاً Site ID را وارد کنید:")
     else:
-        await update.message.reply_text("❌ لطفاً از گزینه‌های موجود استفاده کنید.")
+        await update.message.reply_text("❌ لطفاً یکی از گزینه‌های منو را انتخاب کنید.")
 
 async def site_id_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None:
         return
     site_id = update.message.text.strip()
     
-    # اگر کاربر گزینه‌ای انتخاب نکرده باشد، آخرین انتخاب را در نظر بگیرد
     tracker_type = context.user_data.get('tracker_type')
 
     if not tracker_type:
@@ -126,7 +123,11 @@ async def auth_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
 async def main_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.message.chat_id
-    if user_id not in AUTHORIZED_USERS:
+    text = update.message.text.strip()
+
+    if text in ["Smart Tracker", "Master Tracker", "Target Village"]:
+        await button_handler(update, context)
+    elif user_id not in AUTHORIZED_USERS:
         await auth_handler(update, context)
     else:
         await site_id_handler(update, context)
