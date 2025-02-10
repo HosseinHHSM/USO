@@ -3,10 +3,10 @@ import pandas as pd
 import json
 import requests
 from io import BytesIO
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler,
-    MessageHandler, filters, ContextTypes
+    Application, CommandHandler, MessageHandler,
+    filters, ContextTypes
 )
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -61,20 +61,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("👋 **سلام!**\nمن **دستیار هوشمند تیم USO Radio Planning** هستم. برای شروع لطفاً کد تأیید خود را وارد کنید.")
     else:
         keyboard = [
-            [InlineKeyboardButton("Smart Tracker", callback_data="smart_tracker")],
-            [InlineKeyboardButton("Master Tracker", callback_data="master_tracker")],
-            [InlineKeyboardButton("Target Village", callback_data="target_village")]
+            ["Smart Tracker", "Master Tracker", "Target Village"]
         ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
         await update.message.reply_text("✅ شما تأیید شده‌اید!\nلطفاً یک گزینه را انتخاب کنید:", reply_markup=reply_markup)
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    if query is None:
+    if update.message is None:
         return
-    await query.answer()
-    context.user_data['tracker_type'] = query.data
-    await query.message.edit_text("🔹 لطفاً Site ID را وارد کنید:")
+    text = update.message.text.strip()
+
+    if text not in ["Smart Tracker", "Master Tracker", "Target Village"]:
+        await update.message.reply_text("❌ لطفاً از گزینه‌های موجود استفاده کنید.")
+        return
+
+    context.user_data['tracker_type'] = text.lower().replace(" ", "_")
+    await update.message.reply_text("🔹 لطفاً Site ID را وارد کنید:")
 
 async def site_id_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None:
@@ -82,7 +84,7 @@ async def site_id_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     site_id = update.message.text.strip()
     tracker_type = context.user_data.get('tracker_type')
     if not tracker_type:
-        await update.message.reply_text("❌ لطفاً ابتدا از منو یک گزینه انتخاب کنید.")
+        await update.message.reply_text("❌ لطفاً ابتدا یک گزینه از منو انتخاب کنید.")
         return
 
     df = {
@@ -129,7 +131,6 @@ def main() -> None:
     app = Application.builder().token(TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_text_handler))
     
     print("✅ Bot is running...")
