@@ -1,6 +1,7 @@
 import os
 import json
 import pandas as pd
+import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 from datetime import datetime
@@ -8,9 +9,9 @@ from datetime import datetime
 # --- تنظیمات اولیه ---
 TOKEN = os.getenv("BOT_TOKEN")  # توکن از متغیر محیطی خوانده می‌شود
 EXCEL_FILES = {
-    "RF_PLAN": "RF PLAN.xlsx",  # فایل اکسل RF Plan
-    "MASTER": "Master.xlsx",    # فایل اکسل Master
-    "TARGET_VILLAGE": "Target Village.xlsx"  # فایل اکسل Target Village
+    "RF_PLAN": "https://github.com/HosseinHHSM/USO/raw/main/RF%20PLAN.xlsx",  # لینک فایل اکسل RF Plan
+    "MASTER": "https://github.com/HosseinHHSM/USO/raw/main/Master.xlsx",  # لینک فایل اکسل Master
+    "TARGET_VILLAGE": "https://github.com/HosseinHHSM/USO/raw/main/Target%20village.xlsx"  # لینک فایل اکسل Target Village
 }
 AUTHORIZED_USERS_FILE = "authorized_users.json"  # فایل JSON برای ذخیره اطلاعات کاربران تأیید شده
 VERIFICATION_CODES = {
@@ -34,8 +35,9 @@ def save_authorized_users():
 # --- تابع خواندن اطلاعات از اکسل ---
 def get_site_info(site_id, file_type):
     try:
-        # نام فایل اکسل را از دیکشنری بر اساس نوع فایل انتخاب می‌کنیم
-        df = pd.read_excel(EXCEL_FILES[file_type], engine="openpyxl")
+        # دریافت داده‌ها از URL فایل اکسل گیت‌هاب
+        url = EXCEL_FILES[file_type]
+        df = pd.read_excel(url)
         rows = df[df["Site ID"].astype(str) == str(site_id)]  # بررسی Site ID به عنوان رشته
 
         if rows.empty:
@@ -61,10 +63,11 @@ async def start(update: Update, context: CallbackContext):
             "✅ شما قبلاً تأیید شده‌اید! لطفاً یک گزینه را انتخاب کنید:\n"
             "1. بررسی دیتا از اسمارت ترکر\n"
             "2. بررسی دیتا در مستر ترکر\n"
-            "3. بررسی دیتا در Target Village"
+            "3. بررسی دیتا در Target Village\n"
+            "برای برگشت به منو اصلی، گزینه 'بازگشت' را انتخاب کنید."
         )
     else:
-        await update.message.reply_text("👋 سلام به دستیار هوشمند تیم USO Radio Planning خوش آمدید! لطفاً کد تأیید خود را وارد کنید.")
+        await update.message.reply_text("👋 خوش آمدید! لطفاً کد تأیید خود را وارد کنید.")
 
 # --- هندلر تأیید هویت و پردازش Site ID در یک تابع ---
 async def handle_user_input(update: Update, context: CallbackContext):
@@ -77,22 +80,30 @@ async def handle_user_input(update: Update, context: CallbackContext):
             AUTHORIZED_USERS[user_id] = {"verified": True}
             save_authorized_users()  # ذخیره اطلاعات پس از تأیید
             await update.message.reply_text(
-                "✅ تبریک! شما مجاز به استفاده از خدمات ربات هستید، لطفاً یکی از گزینه های زیر را انتخاب کنید:\n"
+                "✅ تأیید موفقیت‌آمیز بود! لطفاً یک گزینه را انتخاب کنید:\n"
                 "1. بررسی دیتا از اسمارت ترکر\n"
                 "2. بررسی دیتا در مستر ترکر\n"
-                "3. بررسی دیتا در Target Village"
+                "3. بررسی دیتا در Target Village\n"
+                "برای برگشت به منو اصلی، گزینه 'بازگشت' را انتخاب کنید."
             )
         else:
-            await update.message.reply_text("❌ کد ورود اشتباه است. لطفاً دوباره امتحان کنید.")
+            await update.message.reply_text("❌ کد نادرست است. لطفاً دوباره امتحان کنید.")
         return
 
-    # اگر کاربر تأیید شده است، پیام را به عنوان Site ID پردازش کن
+    # انتخاب‌ها و درخواست Site ID
     if user_input == "1":
         await update.message.reply_text("لطفاً Site ID را وارد کنید برای اسمارت ترکر.")
     elif user_input == "2":
         await update.message.reply_text("لطفاً Site ID را وارد کنید برای مستر ترکر.")
     elif user_input == "3":
         await update.message.reply_text("لطفاً Site ID را وارد کنید برای Target Village.")
+    elif user_input.lower() == "بازگشت":
+        await update.message.reply_text(
+            "📝 شما به منو اصلی برگشتید. لطفاً یک گزینه را انتخاب کنید:\n"
+            "1. بررسی دیتا از اسمارت ترکر\n"
+            "2. بررسی دیتا در مستر ترکر\n"
+            "3. بررسی دیتا در Target Village\n"
+        )
     else:
         # بررسی داده در هر فایل اکسل بر اساس Site ID
         if "RF PLAN" in user_input:
@@ -132,7 +143,7 @@ def main():
     # بررسی زمان و توقف ربات در ساعت‌های مشخص شده
     if check_time():
         print("🔴 ربات در ساعات خاموشی است. تا ساعت 8 صبح متوقف خواهد بود.")
-        return  # ربات در ساعت خاموشی متوقف می‌شود.
+        return  # ربات در ساعت خاموشی متوقف می‌شود
 
     app.run_polling()
 
