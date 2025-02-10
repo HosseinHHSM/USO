@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import requests
 from io import BytesIO
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
 # --- تنظیمات اولیه ---
@@ -84,7 +84,7 @@ async def start(update: Update, context: CallbackContext):
     else:
         await update.message.reply_text("👋 سلام دوست عزیز، خوش آمدید! لطفاً کد تأیید خود را وارد کنید.")
 
-# --- هندلر تأیید هویت و پردازش Site ID در یک تابع ---
+# --- هندلر تأیید هویت ---
 async def handle_user_input(update: Update, context: CallbackContext):
     user_id = update.message.chat_id
     user_input = update.message.text.strip()
@@ -112,7 +112,7 @@ async def handle_user_input(update: Update, context: CallbackContext):
     else:
         await update.message.reply_text("❌ انتخاب نامعتبر است. لطفاً دوباره انتخاب کنید.")
 
-# --- هندلر دریافت Site ID ---
+# --- تابع دریافت اطلاعات از اکسل ---
 async def handle_site_id(update: Update, context: CallbackContext):
     user_id = update.message.chat_id
     site_id = update.message.text.strip()
