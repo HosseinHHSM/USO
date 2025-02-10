@@ -45,10 +45,14 @@ def read_excel_from_url(url):
         if response.status_code == 200:
             excel_data = BytesIO(response.content)
             df = pd.read_excel(excel_data, engine="openpyxl")
+            print(f"File loaded successfully from {url}")  # چاپ برای بررسی
+            print(df.head())  # نمایش اولین 5 ردیف برای بررسی
             return df
         else:
+            print(f"Failed to download file from {url}, Status Code: {response.status_code}")  # خطا در دانلود فایل
             return None
     except Exception as e:
+        print(f"Error in downloading file: {str(e)}")
         return None
 
 # تابع برای گرفتن اطلاعات از اکسل مربوطه
