@@ -1,150 +1,127 @@
 import os
-import json
 import pandas as pd
 import requests
+from io import BytesIO
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
-from datetime import datetime
 
 # --- تنظیمات اولیه ---
 TOKEN = os.getenv("BOT_TOKEN")  # توکن از متغیر محیطی خوانده می‌شود
-EXCEL_FILES = {
-    "RF_PLAN": "https://github.com/HosseinHHSM/USO/raw/main/RF%20PLAN.xlsx",  # لینک فایل اکسل RF Plan
-    "MASTER": "https://github.com/HosseinHHSM/USO/raw/main/Master.xlsx",  # لینک فایل اکسل Master
-    "TARGET_VILLAGE": "https://github.com/HosseinHHSM/USO/raw/main/Target%20village.xlsx"  # لینک فایل اکسل Target Village
-}
-AUTHORIZED_USERS_FILE = "authorized_users.json"  # فایل JSON برای ذخیره اطلاعات کاربران تأیید شده
+EXCEL_FILE_RF = "https://github.com/HosseinHHSM/USO/blob/main/RF%20PLAN.xlsx?raw=true"
+EXCEL_FILE_MASTER = "https://github.com/HosseinHHSM/USO/blob/main/Master.xlsx?raw=true"
+EXCEL_FILE_TARGET = "https://github.com/HosseinHHSM/USO/blob/main/Target%20village.xlsx?raw=true"
+
+AUTHORIZED_USERS = set()  # مجموعه‌ای از کاربران تأیید شده
 VERIFICATION_CODES = {
     "766060", "296752", "783213", "047129", "188709", "904796", "086363",
     "144584", "866372", "394644", "808387", "343647", "917012", "920483",
     "292397", "604952", "714342", "390238", "406511", "714780"
 }  # لیست کدهای تأیید
 
-# --- بارگذاری اطلاعات کاربران از فایل JSON ---
-def load_authorized_users():
-    if os.path.exists(AUTHORIZED_USERS_FILE):
-        with open(AUTHORIZED_USERS_FILE, "r", encoding="utf-8") as file:
-            return json.load(file)
-    return {}
-
-# --- ذخیره اطلاعات کاربران به فایل JSON ---
-def save_authorized_users():
-    with open(AUTHORIZED_USERS_FILE, "w", encoding="utf-8") as file:
-        json.dump(AUTHORIZED_USERS, file, ensure_ascii=False, indent=4)
-
-# --- تابع خواندن اطلاعات از اکسل ---
-def get_site_info(site_id, file_type):
+# --- تابع بارگذاری و خواندن داده‌ها از اکسل ---
+def read_excel_from_url(url):
     try:
-        # دریافت داده‌ها از URL فایل اکسل گیت‌هاب
-        url = EXCEL_FILES[file_type]
-        df = pd.read_excel(url)
-        rows = df[df["Site ID"].astype(str) == str(site_id)]  # بررسی Site ID به عنوان رشته
-
-        if rows.empty:
-            return "❌ سایت یافت نشد."
-
-        # اگر چندین ردیف برای یک Site ID وجود داشته باشد، باید آن‌ها را ترکیب کنیم
-        info = f"📡 **Site ID:** {site_id}\n"
-        for _, row in rows.iterrows():
-            info += "\n"
-            for col in df.columns:
-                info += f"**{col}:** {row[col]}\n"
-            info += "----------------------------\n"  # جداکننده برای هر ردیف
-
-        return info
+        response = requests.get(url)
+        response.raise_for_status()  # بررسی صحت درخواست
+        excel_data = BytesIO(response.content)
+        df = pd.read_excel(excel_data, engine="openpyxl")
+        return df
     except Exception as e:
-        return f"⚠️ خطا در خواندن فایل اکسل: {str(e)}"
+        print(f"Error loading Excel: {str(e)}")
+        return None
+
+# تابع خواندن اطلاعات از اکسل‌ها بر اساس سایت
+def get_site_info(site_id, source):
+    if source == "RF_PLAN":
+        df = read_excel_from_url(EXCEL_FILE_RF)
+    elif source == "MASTER":
+        df = read_excel_from_url(EXCEL_FILE_MASTER)
+    elif source == "TARGET_VILLAGE":
+        df = read_excel_from_url(EXCEL_FILE_TARGET)
+    else:
+        return "❌ منبع نادرست است."
+
+    if df is None:
+        return "⚠️ خطا در بارگذاری فایل اکسل."
+
+    # جستجو بر اساس Site ID
+    row = df[df["Site ID"].astype(str) == str(site_id)]
+    if row.empty:
+        return "❌ سایت یافت نشد."
+    
+    # ساختار اطلاعات برای ارسال
+    info = f"📡 **Site ID:** {site_id}\n"
+    for col in df.columns:
+        info += f"**{col}:** {row.iloc[0][col]}\n"
+    
+    return info
 
 # --- پیام خوش‌آمدگویی و شروع ---
 async def start(update: Update, context: CallbackContext):
     user_id = update.message.chat_id
     if user_id in AUTHORIZED_USERS:
-        await update.message.reply_text(
-            "✅ شما قبلاً تأیید شده‌اید! لطفاً یک گزینه را انتخاب کنید:\n"
-            "1. بررسی دیتا از اسمارت ترکر\n"
-            "2. بررسی دیتا در مستر ترکر\n"
-            "3. بررسی دیتا در Target Village\n"
-            "برای برگشت به منو اصلی، گزینه 'بازگشت' را انتخاب کنید."
-        )
+        await update.message.reply_text("✅ شما قبلاً تأیید شده‌اید! لطفاً یکی از گزینه‌ها را انتخاب کنید.", reply_markup=main_menu_keyboard())
     else:
         await update.message.reply_text("👋 خوش آمدید! لطفاً کد تأیید خود را وارد کنید.")
 
-# --- هندلر تأیید هویت و پردازش Site ID در یک تابع ---
+# --- هندلر تأیید هویت ---
 async def handle_user_input(update: Update, context: CallbackContext):
     user_id = update.message.chat_id
     user_input = update.message.text.strip()
 
-    # اگر کاربر تأیید نشده است، پیام را به عنوان کد تأیید بررسی کن
+    # اگر کاربر تأیید نشده است
     if user_id not in AUTHORIZED_USERS:
         if user_input in VERIFICATION_CODES:
-            AUTHORIZED_USERS[user_id] = {"verified": True}
-            save_authorized_users()  # ذخیره اطلاعات پس از تأیید
-            await update.message.reply_text(
-                "✅ تأیید موفقیت‌آمیز بود! لطفاً یک گزینه را انتخاب کنید:\n"
-                "1. بررسی دیتا از اسمارت ترکر\n"
-                "2. بررسی دیتا در مستر ترکر\n"
-                "3. بررسی دیتا در Target Village\n"
-                "برای برگشت به منو اصلی، گزینه 'بازگشت' را انتخاب کنید."
-            )
+            AUTHORIZED_USERS.add(user_id)
+            await update.message.reply_text("✅ تأیید موفقیت‌آمیز بود! لطفاً یکی از گزینه‌ها را انتخاب کنید.", reply_markup=main_menu_keyboard())
         else:
             await update.message.reply_text("❌ کد نادرست است. لطفاً دوباره امتحان کنید.")
         return
 
-    # انتخاب‌ها و درخواست Site ID
+    # اگر کاربر تأیید شده است
     if user_input == "1":
-        await update.message.reply_text("لطفاً Site ID را وارد کنید برای اسمارت ترکر.")
+        await update.message.reply_text("📋 لطفاً Site ID را وارد کنید.")
+        context.user_data['source'] = 'RF_PLAN'
     elif user_input == "2":
-        await update.message.reply_text("لطفاً Site ID را وارد کنید برای مستر ترکر.")
+        await update.message.reply_text("📋 لطفاً Site ID را وارد کنید.")
+        context.user_data['source'] = 'MASTER'
     elif user_input == "3":
-        await update.message.reply_text("لطفاً Site ID را وارد کنید برای Target Village.")
-    elif user_input.lower() == "بازگشت":
-        await update.message.reply_text(
-            "📝 شما به منو اصلی برگشتید. لطفاً یک گزینه را انتخاب کنید:\n"
-            "1. بررسی دیتا از اسمارت ترکر\n"
-            "2. بررسی دیتا در مستر ترکر\n"
-            "3. بررسی دیتا در Target Village\n"
-        )
+        await update.message.reply_text("📋 لطفاً Site ID را وارد کنید.")
+        context.user_data['source'] = 'TARGET_VILLAGE'
     else:
-        # بررسی داده در هر فایل اکسل بر اساس Site ID
-        if "RF PLAN" in user_input:
-            site_id = user_input.replace("RF PLAN", "").strip()  # پاک کردن پیشوند
-            response = get_site_info(site_id, "RF_PLAN")
-            await update.message.reply_text(response, parse_mode="Markdown")
-        elif "MASTER" in user_input:
-            site_id = user_input.replace("MASTER", "").strip()  # پاک کردن پیشوند
-            response = get_site_info(site_id, "MASTER")
-            await update.message.reply_text(response, parse_mode="Markdown")
-        elif "TARGET VILLAGE" in user_input:
-            site_id = user_input.replace("TARGET VILLAGE", "").strip()  # پاک کردن پیشوند
-            response = get_site_info(site_id, "TARGET_VILLAGE")
-            await update.message.reply_text(response, parse_mode="Markdown")
-        else:
-            await update.message.reply_text("❌ انتخاب نامعتبر بود. لطفاً دوباره تلاش کنید.")
+        await update.message.reply_text("❌ انتخاب نا معتبر است. لطفاً دوباره انتخاب کنید.", reply_markup=main_menu_keyboard())
 
-# --- تابع برای بررسی زمان و توقف ربات بین 12 شب تا 8 صبح ---
-def check_time():
-    now = datetime.now()
-    if now.hour >= 0 and now.hour < 8:
-        return True
-    return False
+# --- تابع دریافت اطلاعات از اکسل ---
+async def handle_site_id(update: Update, context: CallbackContext):
+    user_id = update.message.chat_id
+    site_id = update.message.text.strip()
+
+    source = context.user_data.get('source')
+    if source:
+        response = get_site_info(site_id, source)
+        await update.message.reply_text(response)
+
+        # بعد از نمایش دیتا، منوی اصلی رو نشون بده
+        await update.message.reply_text("لطفاً یکی از گزینه‌ها را انتخاب کنید.", reply_markup=main_menu_keyboard())
+
+# --- منوی اصلی ---
+def main_menu_keyboard():
+    from telegram import ReplyKeyboardMarkup
+    keyboard = [
+        ["1. بررسی دیتا از اسمارت ترکر", "2. بررسی دیتا از مستر ترکر"],
+        ["3. بررسی دیتا از Target Village"]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 # --- راه‌اندازی بات ---
 def main():
-    global AUTHORIZED_USERS
-    AUTHORIZED_USERS = load_authorized_users()  # بارگذاری اطلاعات کاربران
-
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_input))  # مدیریت همه ورودی‌های متنی
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_input))  # مدیریت ورودی‌های متن
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_site_id))  # مدیریت Site ID
 
     print("🤖 Bot is running...")
-    
-    # بررسی زمان و توقف ربات در ساعت‌های مشخص شده
-    if check_time():
-        print("🔴 ربات در ساعات خاموشی است. تا ساعت 8 صبح متوقف خواهد بود.")
-        return  # ربات در ساعت خاموشی متوقف می‌شود
-
     app.run_polling()
 
 if __name__ == "__main__":
