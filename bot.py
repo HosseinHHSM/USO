@@ -75,7 +75,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
         await update.message.reply_text("✅ شما تأیید شده‌اید!\nلطفاً یک گزینه را انتخاب کنید:", reply_markup=reply_markup)
     else:
-        await update.message.reply_text("👋 سلام! لطفاً یوزرنیم و پسورد خود را به این صورت ارسال کنید:\n`یوزرنیم:پسورد`", parse_mode="Markdown")
+        await update.message.reply_text("👋 سلام!به دستیار هوشمند تیم USO radio planing خوش آمدید لطفاً یوزرنیم و پسورد خود را به این صورت ارسال کنید:\n`یوزرنیم:پسورد`", parse_mode="Markdown")
 
 async def auth_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None:
@@ -95,7 +95,7 @@ async def auth_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             if username not in authorized_users.values():
                 authorized_users[user_id] = username
                 save_authorized_users(authorized_users)
-                await update.message.reply_text("✅ ورود موفقیت‌آمیز! از /start برای ادامه استفاده کنید.")
+                await update.message.reply_text("✅ شما مجاز به استفاده از خدمات ربات هستید! از /start برای ادامه استفاده کنید.")
                 # حذف پیام یوزرنیم و پسورد پس از ورود موفق
                 await update.message.delete()
             else:
@@ -126,7 +126,7 @@ async def site_id_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if not tracker_type:
         keyboard = [["Smart Tracker", "Master Tracker", "Target Village"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
-        await update.message.reply_text("🔹 لطفاً ابتدا یک گزینه را انتخاب کنید:", reply_markup=reply_markup)
+        await update.message.reply_text("🔹 لطفاً ابتدا یک گزینه از منو را انتخاب کنید:", reply_markup=reply_markup)
         return
 
     df = {
