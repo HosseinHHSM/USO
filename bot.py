@@ -2,14 +2,14 @@ import os
 import pandas as pd
 import requests
 from io import BytesIO
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
 # --- تنظیمات اولیه ---
 TOKEN = os.getenv("BOT_TOKEN")  # توکن از متغیر محیطی خوانده می‌شود
-EXCEL_FILE_RF = "https://github.com/HosseinHHSM/USO/blob/main/RF%20PLAN.xlsx?raw=true"
-EXCEL_FILE_MASTER = "https://github.com/HosseinHHSM/USO/blob/main/Master.xlsx?raw=true"
-EXCEL_FILE_TARGET = "https://github.com/HosseinHHSM/USO/blob/main/Target%20village.xlsx?raw=true"
+EXCEL_FILE_RF = "https://github.com/HosseinHHSM/USO/raw/main/RF%20PLAN.xlsx"
+EXCEL_FILE_MASTER = "https://github.com/HosseinHHSM/USO/raw/main/Master.xlsx"
+EXCEL_FILE_TARGET = "https://github.com/HosseinHHSM/USO/raw/main/Target%20village.xlsx"
 
 AUTHORIZED_USERS = set()  # مجموعه‌ای از کاربران تأیید شده
 VERIFICATION_CODES = {
@@ -108,10 +108,11 @@ async def handle_site_id(update: Update, context: CallbackContext):
 def main_menu_keyboard():
     from telegram import ReplyKeyboardMarkup
     keyboard = [
-        ["1. بررسی دیتا از اسمارت ترکر", "2. بررسی دیتا از مستر ترکر"],
-        ["3. بررسی دیتا از Target Village"]
+        [InlineKeyboardButton("1. بررسی دیتا از اسمارت ترکر", callback_data='1')],
+        [InlineKeyboardButton("2. بررسی دیتا از مستر ترکر", callback_data='2')],
+        [InlineKeyboardButton("3. بررسی دیتا از Target Village", callback_data='3')]
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return InlineKeyboardMarkup(keyboard)
 
 # --- راه‌اندازی بات ---
 def main():
