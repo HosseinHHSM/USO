@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import requests
 from io import BytesIO
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     filters, ContextTypes
@@ -71,19 +71,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     text = update.message.text.strip()
 
-    if text not in ["Smart Tracker", "Master Tracker", "Target Village"]:
+    if text in ["Smart Tracker", "Master Tracker", "Target Village"]:
+        context.user_data['tracker_type'] = text.lower().replace(" ", "_")  # ذخیره نوع ترکر در context
+        await update.message.reply_text("🔹 لطفاً Site ID را وارد کنید:")
+    else:
         await update.message.reply_text("❌ لطفاً از گزینه‌های موجود استفاده کنید.")
-        return
-
-    context.user_data['tracker_type'] = text.lower().replace(" ", "_")
-    await update.message.reply_text("🔹 لطفاً Site ID را وارد کنید:")
 
 async def site_id_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None:
         return
     site_id = update.message.text.strip()
-    tracker_type = context.user_data.get('tracker_type')
-    if not tracker_type:
+    tracker_type = context.user_data.get('tracker_type')  # دریافت نوع ترکر ذخیره‌شده در context
+
+    if not tracker_type:  # اگر نوع ترکر مشخص نشده باشد
         await update.message.reply_text("❌ لطفاً ابتدا یک گزینه از منو انتخاب کنید.")
         return
 
