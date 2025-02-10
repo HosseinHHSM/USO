@@ -81,10 +81,14 @@ async def site_id_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if update.message is None:
         return
     site_id = update.message.text.strip()
-    tracker_type = context.user_data.get('tracker_type')  # دریافت نوع ترکر ذخیره‌شده در context
+    
+    # اگر کاربر گزینه‌ای انتخاب نکرده باشد، آخرین انتخاب را در نظر بگیرد
+    tracker_type = context.user_data.get('tracker_type')
 
-    if not tracker_type:  # اگر نوع ترکر مشخص نشده باشد
-        await update.message.reply_text("❌ لطفاً ابتدا یک گزینه از منو انتخاب کنید.")
+    if not tracker_type:
+        keyboard = [["Smart Tracker", "Master Tracker", "Target Village"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+        await update.message.reply_text("🔹 لطفاً ابتدا یک گزینه را انتخاب کنید:", reply_markup=reply_markup)
         return
 
     df = {
