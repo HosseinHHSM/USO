@@ -1,89 +1,75 @@
 import os
 import pandas as pd
+import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-# خواندن توکن از متغیر محیطی
+# تنظیمات لاگ‌گیری
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+
 TOKEN = os.getenv("BOT_TOKEN")
 
-# لینک‌های اکسل‌ها
-RF_PLAN_URL = "https://github.com/HosseinHHSM/USO/raw/main/RF%20PLAN.xlsx"
-MASTER_URL = "https://github.com/HosseinHHSM/USO/raw/main/Master.xlsx"
-TARGET_VILLAGE_URL = "https://github.com/HosseinHHSM/USO/raw/main/Target%20village.xlsx"
+# خواندن داده‌های اکسل
+def read_excel_files():
+    global df_rf, df_master, df_target
+    df_rf = pd.read_excel("RF PLAN.xlsx")
+    df_master = pd.read_excel("Master.xlsx")
+    df_target = pd.read_excel("Target village.xlsx")
 
-# دانلود و خواندن فایل‌های اکسل
-def read_excel(url):
-    try:
-        df = pd.read_excel(url)
-        return df
-    except Exception as e:
-        return None
+read_excel_files()
 
-rf_plan_df = read_excel(RF_PLAN_URL)
-master_df = read_excel(MASTER_URL)
-target_village_df = read_excel(TARGET_VILLAGE_URL)
-
-# تابع نمایش منوی اصلی
-def start(update: Update, context):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("Smart Tracker", callback_data='smart_tracker')],
-        [InlineKeyboardButton("Master Tracker", callback_data='master_tracker')],
-        [InlineKeyboardButton("Target Village", callback_data='target_village')]
+        [InlineKeyboardButton("📊 بررسی Smart Tracker", callback_data='smart_tracker')],
+        [InlineKeyboardButton("📑 بررسی Master Tracker", callback_data='master_tracker')],
+        [InlineKeyboardButton("🎯 بررسی Target Village", callback_data='target_village')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("لطفاً یک گزینه را انتخاب کنید:", reply_markup=reply_markup)
-
-# تابع بررسی دیتا
-def check_data(update: Update, context):
-    query = update.callback_query
-    query.answer()
-    context.user_data['current_section'] = query.data
-    query.message.reply_text("لطفاً Site ID را وارد کنید:")
-
-# پردازش Site ID
-def process_site_id(update: Update, context):
-    site_id = update.message.text.strip()
-    section = context.user_data.get('current_section')
     
-    if section == 'smart_tracker':
-        df = rf_plan_df
-    elif section == 'master_tracker':
-        df = master_df
-    elif section == 'target_village':
-        df = target_village_df
+    await update.message.reply_text("لطفاً یک گزینه را انتخاب کنید:", reply_markup=reply_markup)
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['mode'] = query.data
+    await query.message.reply_text("🔹 لطفاً Site ID موردنظر را وارد کنید:")
+
+async def site_id_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    site_id = update.message.text.strip()
+    mode = context.user_data.get('mode')
+    
+    if mode == 'smart_tracker':
+        df = df_rf
+    elif mode == 'master_tracker':
+        df = df_master
+    elif mode == 'target_village':
+        df = df_target
     else:
-        update.message.reply_text("خطا: لطفاً از منو استفاده کنید.")
+        await update.message.reply_text("❌ لطفاً ابتدا یک گزینه از منو انتخاب کنید.")
         return
     
-    if df is not None:
-        result = df[df['Site ID'].astype(str) == site_id]
-        if not result.empty:
-            message_text = "\n==================================================\n".join(
-                [f"🌍 **موقعیت:** {row.get('استان', 'نامشخص')} - {row.get('شهرستان', 'نامشخص')}\n"
-                 f"🏡 **آبادی:** {row.get('آبادی', 'نامشخص')}\n"
-                 f"📍 **مختصات:** {row.get('عرض جغرافیایی', 'نامشخص')} , {row.get('طول جغرافیایی', 'نامشخص')}"
-                 for _, row in result.iterrows()]
-            )
-        else:
-            message_text = "⚠️ اطلاعاتی برای این Site ID یافت نشد."
+    result = df[df['Site ID'] == site_id]
+    if result.empty:
+        await update.message.reply_text("⚠️ اطلاعاتی برای این Site ID یافت نشد.")
     else:
-        message_text = "⚠️ خطا در خواندن اطلاعات."
-    
-    update.message.reply_text(message_text)
+        message_text = "\n==================================================\n".join(result.astype(str).apply(lambda x: "\n".join(f"{col}: {val}" for col, val in x.items()), axis=1))
+        await update.message.reply_text(f"🔹 اطلاعات سایت {site_id}:\n{message_text}")
 
-# دکمه بازگشت
-def back(update: Update, context):
-    start(update, context)
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    logging.error(f"Error: {context.error}")
 
-# تنظیم ربات
-def main():
+if __name__ == "__main__":
     app = Application.builder().token(TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(check_data))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_site_id))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, site_id_handler))
     
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
+    app.add_error_handler(error_handler)
+    
+    print("✅ ربات در حال اجراست...")
+    app.run_polling()}]}
